@@ -5,8 +5,8 @@ from django.core.exceptions import ObjectDoesNotExist
 class Folder(models.Model):
 
     class Meta:
-        verbose_name='Папка'  #TODO: здесь и везде использовать нотацию со строчной буквы
-        verbose_name_plural='Папки'
+        verbose_name='папка'
+        verbose_name_plural='папки'
 
     title = models.CharField('Папка', max_length=255)
     preview = models.ImageField('Превью')
@@ -16,10 +16,9 @@ class Folder(models.Model):
         return self.title
 
     @classmethod
-    def get_list():  # TODO: отсутствует аргумент cls
-        # TODO: здесь и в других методах get_list и get_one вместо response использовать list_obj и obj
-        responce = list(cls.objects.values('id', 'title', 'preview').order_by('title'))
-        return {'folders': responce}
+    def get_list(cls):
+        list_obj = list(cls.objects.values('id', 'title', 'preview').order_by('title'))
+        return {'folders': list_obj}
 
 
 class Document(models.Model):
@@ -41,28 +40,22 @@ class Document(models.Model):
     def get_list(cls, folder):
         try:
             folder_id = int(folder)
-            responce = list(cls.objects.filter(folder=folder_id).values(
+            list_obj = list(cls.objects.filter(folder=folder_id).values(
                 'id', 'title', 'description', 'created', 'preview'))
             
-            if len(responce):
-                return {'documents': responce}
+            if len(list_obj):
+                return {'documents': list_obj}
             else:
                 return {'error': 'folder not exist'}
-
         except ValueError:
             return {'error': 'forder_id uncorrect'}
 
     @classmethod
     def get_one(cls, doc_id):
         try:
-            doc_id = int(doc_id)
-
-            # TODO: вынести сбор элементов в метод Element.get_list(doc_id) и вызывать его здесь
-            elements = list(Element.objects.filter(doc=doc_id).order_by('order').values('text', 'type', 'file'))
-            doc = cls.objects.values('title').get(pk=doc_id)
-            doc['content'] = elements
-
-            return doc
+            obj = Element.get_list(doc_id)
+            obj['title'] = cls.objects.values('title').get(pk=int(doc_id))
+            return obj
         except ValueError:
             return {'error': 'doc_id is invalid'}
         except ObjectDoesNotExist:
@@ -87,6 +80,15 @@ class Element(models.Model):
     text = models.TextField('Текст')
     order = models.PositiveIntegerField('порядок')
     file = models.FileField('Файл', upload_to='upload/%Y/%m/%d/')
+
+
+    @classmethod
+    def get_list(cls, doc_id):
+        try:
+            get_list = list(cls.objects.filter(doc=int(doc_id)).order_by('order').values('text', 'type', 'file'))
+            return {'content': get_list}
+        except ValueError:
+            return {'error': 'doc_id is invalid'}
 
     def __str__(self):
         return self.type

@@ -17,7 +17,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
+    path('api/courses/', include('courses.urls')),
+    path('api/auth/', include('authentication.urls')),
     path('admin/', admin.site.urls),
-    path('signin/', include('authentication.urls')),  # TODO: сделать роутинг через api/auth
-    path('', include('courses.urls')),  # TODO: сделать роутинг через api/courses
 ]
