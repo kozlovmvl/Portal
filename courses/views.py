@@ -1,12 +1,11 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-
+from rest_framework.decorators import api_view
 from courses import models
 
 
-# TODO: везде вместо require_http_methods использовать api_view(['POST']) из rest_framework.decorators
-@require_http_methods(['POST'])
+@api_view(['POST'])
 @csrf_exempt
 def get_document(request):
     if 'doc_id' in request.POST:
@@ -15,16 +14,12 @@ def get_document(request):
     return JsonResponse({'error': 'doc_id is undefined'})
 
 
-
-@require_http_methods(['POST'])
+@api_view(['POST'])
 @csrf_exempt
 def get_folders(request):
     if 'folder_id' in request.POST:
-        # TODO: вот так
-        response = {
-            'documents': models.Document.get_list(request.POST['folder_id'])
-        }
+        response = { 'documents': models.Document.get_list(request.POST['folder_id']) }
         return JsonResponse(response)
     else:
-        responce = list(models.Folder.objects.get_list())
+        responce = { 'folders': models.Folder.get_list() }
         return JsonResponse(responce)

@@ -8,55 +8,45 @@ class Folder(models.Model):
         verbose_name='папка'
         verbose_name_plural='папки'
 
-    # TODO: везде первые буквы перевести в нижний регистр
-    title = models.CharField('Папка', max_length=255)
-    preview = models.ImageField('Превью')
-    is_visible = models.BooleanField('Видимость', default=False)
+    title = models.CharField('папка', max_length=255)
+    preview = models.ImageField('превью')
+    is_visible = models.BooleanField('видимость', default=False)
 
     def __str__(self):
         return self.title
 
     @classmethod
     def get_list(cls):
-        list_obj = list(cls.objects.values('id', 'title', 'preview').order_by('title'))
-        return {'folders': list_obj}
+        return list(cls.objects.values('id', 'title', 'preview').order_by('title')) 
 
 
 class Document(models.Model):
     class Meta:
-        verbose_name='Документ'
-        verbose_name_plural='Документы'
+        verbose_name='документ'
+        verbose_name_plural='документы'
 
-    title = models.CharField('Название документа', max_length=255)
-    description = models.TextField('Описание')
-    preview = models.ImageField('Превью')
-    created = models.DateTimeField('Дата создания', auto_now_add=True)
-    is_visible = models.BooleanField('Видимость')
-    folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
+    title = models.CharField('название документа', max_length=255)
+    description = models.TextField('описание')
+    preview = models.ImageField('превью')
+    created = models.DateTimeField('дата создания', auto_now_add=True)
+    is_visible = models.BooleanField('видимость')
+    folder = models.ForeignKey('Folder', verbose_name="папка", on_delete=models.CASCADE)
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def get_list(cls, folder):
-        try:
-            # TODO: исходя из названия метода, он должен возвращать list, а не dict
-            # TODO: не нужно приводить к типу int(folder_id);
-            # folder_id должен изначально приходить как int
-            folder_id = int(folder)
-            list_obj = list(cls.objects.filter(folder=folder_id).values(
-                'id', 'title', 'description', 'created', 'preview'))
-    
-            return {'documents': list_obj} if len(list_obj) else {'error': 'folder not exist'}
-        except ValueError:
-            return {'error': 'forder_id uncorrect'}
+    def get_list(cls, folder_id):
+        return list(cls.objects.filter(folder=folder_id).values(
+            'id', 'title', 'description', 'created', 'preview'))
+            
 
     @classmethod
     def get_one(cls, doc_id):
         try:
             list_obj = Element.get_list(doc_id)
-            obj = cls.objects.values('title').get(pk=int(doc_id))
-            return {**obj, **list_obj}
+            obj = cls.objects.values('title').get(pk=doc_id)
+            return {**obj, 'content': list_obj}
         except ValueError:
             return {'error': 'doc_id is invalid'}
         except ObjectDoesNotExist:
@@ -72,24 +62,19 @@ class Element(models.Model):
     ]
 
     class Meta:
-        verbose_name = 'Элемент'
-        verbose_name_plural = 'Элементы'
+        verbose_name = 'элемент'
+        verbose_name_plural = 'элементы'
 
-    doc = models.ForeignKey('Document', related_name="document", on_delete=models.CASCADE)
-    type = models.CharField('Тип', max_length=5, choices=CHOICES)
-    text = models.TextField('Текст')
+    doc = models.ForeignKey('Document', verbose_name="документ", related_name="document", on_delete=models.CASCADE)
+    type = models.CharField('тип', max_length=5, choices=CHOICES)
+    text = models.TextField('текст')
     order = models.PositiveIntegerField('порядок')
-    file = models.FileField('Файл', upload_to='upload/%Y/%m/%d/')
+    file = models.FileField('файл', upload_to='upload/%Y/%m/%d/')
 
 
     @classmethod
     def get_list(cls, doc_id):
-        try:
-            get_list = list(cls.objects.filter(doc=int(doc_id)).order_by('order').values('text', 'type', 'file'))
-            # TODO: исходя из названия метода, он должен возвращать list, а не dict
-            return {'content': get_list}
-        except ValueError:
-            return {'error': 'doc_id is invalid'}
+        return list(cls.objects.filter(doc=doc_id).order_by('order').values('text', 'type', 'file'))
 
     def __str__(self):
         return self.type

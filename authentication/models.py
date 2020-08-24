@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 class CustomUser(AbstractUser):
-    token = models.UUIDField('Токен', default=uuid1)
+    token = models.UUIDField('токен', default=uuid1)
     date_token_renewed = models.DateTimeField(default=timezone.now)
 
     def create_token(self):

@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'courses',
     'authentication',
     'corsheaders',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
