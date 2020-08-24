@@ -1,10 +1,11 @@
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist
 
+
 class Folder(models.Model):
 
     class Meta:
-        verbose_name='Папка'
+        verbose_name='Папка'  #TODO: здесь и везде использовать нотацию со строчной буквы
         verbose_name_plural='Папки'
 
     title = models.CharField('Папка', max_length=255)
@@ -15,7 +16,8 @@ class Folder(models.Model):
         return self.title
 
     @classmethod
-    def get_list():
+    def get_list():  # TODO: отсутствует аргумент cls
+        # TODO: здесь и в других методах get_list и get_one вместо response использовать list_obj и obj
         responce = list(cls.objects.values('id', 'title', 'preview').order_by('title'))
         return {'folders': responce}
 
@@ -55,6 +57,7 @@ class Document(models.Model):
         try:
             doc_id = int(doc_id)
 
+            # TODO: вынести сбор элементов в метод Element.get_list(doc_id) и вызывать его здесь
             elements = list(Element.objects.filter(doc=doc_id).order_by('order').values('text', 'type', 'file'))
             doc = cls.objects.values('title').get(pk=doc_id)
             doc['content'] = elements
@@ -84,7 +87,6 @@ class Element(models.Model):
     text = models.TextField('Текст')
     order = models.PositiveIntegerField('порядок')
     file = models.FileField('Файл', upload_to='upload/%Y/%m/%d/')
-
 
     def __str__(self):
         return self.type

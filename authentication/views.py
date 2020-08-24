@@ -10,6 +10,14 @@ from uuid import uuid1
 @require_http_methods(['POST'])
 @csrf_exempt
 def signin(request):
+    # TODO: убрать проверку request.user.is_authenticated
+    # TODO реализовать следующий алгоритм:
+    # 1. находим пользователя по username;
+    # 2. если не нашли или он заблокирован - ответ {}, 401
+    # 3. проверяем его пароль, если не верный - ответ {}, 401
+    # 4. создаем и сохраняем новый токен
+    # 5. ответ {'token': 200}
+
     if not request.user.is_authenticated:
         if ('username' and 'password') in request.POST:
             #если поля существуют, то ищем пользователя.
