@@ -8,6 +8,7 @@ class Folder(models.Model):
         verbose_name='папка'
         verbose_name_plural='папки'
 
+    # TODO: везде первые буквы перевести в нижний регистр
     title = models.CharField('Папка', max_length=255)
     preview = models.ImageField('Превью')
     is_visible = models.BooleanField('Видимость', default=False)
@@ -39,6 +40,9 @@ class Document(models.Model):
     @classmethod
     def get_list(cls, folder):
         try:
+            # TODO: исходя из названия метода, он должен возвращать list, а не dict
+            # TODO: не нужно приводить к типу int(folder_id);
+            # folder_id должен изначально приходить как int
             folder_id = int(folder)
             list_obj = list(cls.objects.filter(folder=folder_id).values(
                 'id', 'title', 'description', 'created', 'preview'))
@@ -57,7 +61,6 @@ class Document(models.Model):
             return {'error': 'doc_id is invalid'}
         except ObjectDoesNotExist:
             return {'error': 'id not find'}
-
 
 
 class Element(models.Model):
@@ -83,6 +86,7 @@ class Element(models.Model):
     def get_list(cls, doc_id):
         try:
             get_list = list(cls.objects.filter(doc=int(doc_id)).order_by('order').values('text', 'type', 'file'))
+            # TODO: исходя из названия метода, он должен возвращать list, а не dict
             return {'content': get_list}
         except ValueError:
             return {'error': 'doc_id is invalid'}
