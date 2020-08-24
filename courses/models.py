@@ -42,11 +42,8 @@ class Document(models.Model):
             folder_id = int(folder)
             list_obj = list(cls.objects.filter(folder=folder_id).values(
                 'id', 'title', 'description', 'created', 'preview'))
-            
-            if len(list_obj):
-                return {'documents': list_obj}
-            else:
-                return {'error': 'folder not exist'}
+    
+            return {'documents': list_obj} if len(list_obj) else {'error': 'folder not exist'}
         except ValueError:
             return {'error': 'forder_id uncorrect'}
 
