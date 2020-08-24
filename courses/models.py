@@ -53,9 +53,9 @@ class Document(models.Model):
     @classmethod
     def get_one(cls, doc_id):
         try:
-            obj = Element.get_list(doc_id)
-            obj['title'] = cls.objects.values('title').get(pk=int(doc_id))
-            return obj
+            list_obj = Element.get_list(doc_id)
+            obj = cls.objects.values('title').get(pk=int(doc_id))
+            return {**obj, **list_obj}
         except ValueError:
             return {'error': 'doc_id is invalid'}
         except ObjectDoesNotExist:
