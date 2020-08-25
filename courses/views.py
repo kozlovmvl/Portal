@@ -1,10 +1,9 @@
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 
+from authentication.decorators import auth_and_parse
 from courses import models
 
-from authentication.decorators import auth_and_parse
 
 @api_view(['POST'])
 @csrf_exempt
