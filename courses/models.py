@@ -47,11 +47,11 @@ class Document(models.Model):
         try:
             list_obj = Element.get_list(doc_id)
             obj = cls.objects.values('title').get(pk=doc_id)
-            return {**obj, 'content': list_obj}
+            return {**obj, 'content': list_obj}, 200
         except ValueError:
-            return {'error': 'doc_id is invalid'}
+            return {'error': 'doc_id is invalid'}, 400
         except cls.DoesNotExist:
-            return {'error': 'id not find'}
+            return {'error': 'id not find'}, 400
 
 
 class Element(models.Model):

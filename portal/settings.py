@@ -57,7 +57,8 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'portal.urls'
 
 AUTH_USER_MODEL = 'authentication.CustomUser'
-TOKEN_EXPIRE = 2
+
+TOKEN_EXPIRE = 3
 
 TEMPLATES = [
     {
@@ -143,3 +144,12 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+
+
+# REST FRAMEWORK
+
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': [
+#         'rest_framework.authentication.TokenAuthentication',
+#     ]
+# }
