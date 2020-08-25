@@ -1,5 +1,4 @@
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist
 
 
 class Folder(models.Model):
@@ -17,7 +16,8 @@ class Folder(models.Model):
 
     @classmethod
     def get_list(cls):
-        return list(cls.objects.values('id', 'title', 'preview').order_by('title')) 
+        return list(cls.objects.values('id', 'title', 'preview')
+                    .order_by('title'))
 
 
 class Document(models.Model):
@@ -30,7 +30,8 @@ class Document(models.Model):
     preview = models.ImageField('превью')
     created = models.DateTimeField('дата создания', auto_now_add=True)
     is_visible = models.BooleanField('видимость')
-    folder = models.ForeignKey('Folder', verbose_name="папка", on_delete=models.CASCADE)
+    folder = models.ForeignKey(
+        'Folder', verbose_name='папка', on_delete=models.CASCADE)
 
     def __str__(self):
         return self.title
@@ -49,7 +50,7 @@ class Document(models.Model):
             return {**obj, 'content': list_obj}
         except ValueError:
             return {'error': 'doc_id is invalid'}
-        except ObjectDoesNotExist:
+        except cls.DoesNotExist:
             return {'error': 'id not find'}
 
 
@@ -57,15 +58,17 @@ class Element(models.Model):
     
     CHOICES = [
         ('html', 'html'),
-        ('image', 'Изображение'),
-        ('file', 'Файл'),
+        ('image', 'изображение'),
+        ('file', 'файл'),
     ]
 
     class Meta:
         verbose_name = 'элемент'
         verbose_name_plural = 'элементы'
 
-    doc = models.ForeignKey('Document', verbose_name="документ", related_name="document", on_delete=models.CASCADE)
+    doc = models.ForeignKey(
+        'Document', verbose_name='документ',
+        related_name='document', on_delete=models.CASCADE)
     type = models.CharField('тип', max_length=5, choices=CHOICES)
     text = models.TextField('текст')
     order = models.PositiveIntegerField('порядок')
@@ -74,7 +77,8 @@ class Element(models.Model):
 
     @classmethod
     def get_list(cls, doc_id):
-        return list(cls.objects.filter(doc=doc_id).order_by('order').values('text', 'type', 'file'))
+        return list(cls.objects.filter(doc=doc_id).order_by('order')
+                    .values('text', 'type', 'file'))
 
     def __str__(self):
         return self.type
