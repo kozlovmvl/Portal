@@ -15,4 +15,5 @@ class ElementInline(admin.TabularInline):
 class DocumentAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'is_visible']
     search_fields = ['id', 'title']
+    readonly_fields = ['views']
     inlines = [ElementInline]
