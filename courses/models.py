@@ -1,7 +1,8 @@
 from django.db import models
-from django.db.models import OuterRef, Count, Exists
+from django.db.models import OuterRef, Count, Exists, F
 
 from authentication.models import CustomUser
+
 
 class Folder(models.Model):
 
@@ -41,16 +42,11 @@ class Document(models.Model):
 
     @classmethod
     def get_list(cls, user, folder_id):
-        subquery = LikeDocument.objects.filter(user=user, doc=OuterRef('id'))
+        subquery = LikeDocument.objects.filter(user_id=user.id, doc=OuterRef('id'))
         list_obj = list(cls.objects.filter(folder=folder_id).values(
-            'id', 'title', 'description', 'created', 'preview', 'views'
-            ).annotate(
-                likes=Count('likes'),
-            ).annotate(
-                is_liked=Exists(subquery))
-            )
+            'id', 'title', 'description', 'created', 'preview', 'views',
+            likes=Count('likes'), is_liked=Exists(subquery)))
         return list_obj
-            
 
     @classmethod
     def get_one(cls, doc_id):
@@ -64,16 +60,9 @@ class Document(models.Model):
             return {'error': 'id not find'}, 400
     
     @classmethod
-    def create_or_update_views(cls, user, doc_id):
-        doc = cls.objects.get(id=doc_id)
-        view_doc, created = ViewDocument.objects.get_or_create(user=user, doc=doc)
-        if created:
-            doc.views += 1
-            doc.save(update_fields=['views'])
-        else:
-            view_doc.save(update_fields=['date'])
-
-        return created
+    def fix_view(cls, user, doc_id):
+        cls.objects.filter(id=doc_id).update(views=F('views')+1)
+        ViewDocument.objects.get_or_create(user_id=user.id, doc_id=doc_id)
 
             
 class Element(models.Model):
@@ -108,7 +97,9 @@ class Element(models.Model):
 
 class ViewDocument(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    doc = models.ForeignKey('Document', related_name="view", verbose_name="документ", on_delete=models.CASCADE)
+    doc = models.ForeignKey(
+        'Document', on_delete=models.CASCADE,
+        related_name='view', verbose_name='документ')
     date = models.DateTimeField('время просмотра', auto_now=True)
 
     def __str__(self):
@@ -116,10 +107,11 @@ class ViewDocument(models.Model):
 
 class LikeDocument(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    doc = models.ForeignKey('Document', related_name="likes", verbose_name="документ", on_delete=models.CASCADE)
+    doc = models.ForeignKey(
+        'Document', on_delete=models.CASCADE,
+        related_name='likes', verbose_name='документ')
 
     @classmethod
     def set_like(cls, user, doc_id):
-        doc = Document.objects.get(id=doc_id)
-        like_doc, created = cls.objects.get_or_create(user=user, doc=doc)
+        _, created = cls.objects.get_or_create(user_id=user.id, doc=doc_id)
         return created

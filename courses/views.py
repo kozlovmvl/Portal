@@ -10,7 +10,7 @@ from courses import models
 @auth_and_parse
 def get_document(system, data):
     if 'doc_id' in data:
-        models.Document.create_or_update_views(system['__user'], data['doc_id'])
+        models.Document.fix_view(system['__user'], data['doc_id'])
         response, status = models.Document.get_one(data['doc_id'])
         return response, status
     return {'error': 'doc_id is undefined'}, 400
@@ -31,7 +31,10 @@ def like_document(system, data):
 @auth_and_parse
 def get_folders(system, data):
     if 'folder_id' in data:
-        response = { 'documents': models.Document.get_list(system['__user'], data['folder_id']) }
+        response = {
+            'documents': models.Document.get_list(
+                system['__user'], data['folder_id'])
+        }
         return response, 200
     else:
         response = { 'folders': models.Folder.get_list() }
