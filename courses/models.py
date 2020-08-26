@@ -113,5 +113,5 @@ class LikeDocument(models.Model):
 
     @classmethod
     def set_like(cls, user, doc_id):
-        _, created = cls.objects.get_or_create(user_id=user.id, doc=doc_id)
+        _, created = cls.objects.get_or_create(user_id=user.id, doc_id=doc_id)
         return created
