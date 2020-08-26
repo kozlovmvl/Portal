@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Test(models.Model):
 
     class Meta:
@@ -13,6 +14,7 @@ class Test(models.Model):
 
     def __str__(self):
         return self.title
+
 
 class Question(models.Model):
 
@@ -32,7 +34,7 @@ class Question(models.Model):
 
     def __str__(self):
         if len(self.text) > 70:
-            return "{}...".format(self.text[:70])
+            return f'{self.text[:70]}...'
         return self.text
 
 
@@ -45,9 +47,11 @@ class Option(models.Model):
     text = models.TextField('текст')
     is_right = models.BooleanField('верность ответа')
     order = models.PositiveIntegerField('порядок')
-    question = models.ForeignKey('Question', verbose_name="вопрос", related_name="options", on_delete=models.CASCADE)
+    question = models.ForeignKey(
+        'Question', verbose_name='вопрос',
+        related_name='options', on_delete=models.CASCADE)
 
     def __str__(self):
         if len(self.text) > 70:
-            return "{}...".format(self.text[:70])
+            return f'{self.text[:70]}...'
         return self.text
