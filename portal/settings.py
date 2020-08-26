@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'courses',
     'authentication',
     'corsheaders',
+    'tests',
     'rest_framework',
 ]
 
