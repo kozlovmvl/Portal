@@ -1,5 +1,6 @@
 from django.db import models
 
+from authentication.models import CustomUser
 
 class Test(models.Model):
 
@@ -55,3 +56,45 @@ class Option(models.Model):
         if len(self.text) > 70:
             return f'{self.text[:70]}...'
         return self.text
+
+
+class Attempt(models.Model):
+
+    class Meta:
+        verbose_name = 'попытка'
+        verbose_name_plural = 'попытки'
+
+    start = models.DateTimeField('дата начала', auto_now_add=True)
+    finish = models.DateTimeField('дата окончания')
+    result = models.DecimalField('результат', max_digits=100, decimal_places=1)
+    is_over = models.BooleanField('окончен?')
+    user = models.ForeignKey(
+        CustomUser, verbose_name="пользователь",
+        related_name='attempts', on_delete=models.CASCADE)
+
+
+class Answer(models.Model):
+
+    class Meta:
+        verbose_name = 'ответ'
+        verbose_name_plural = 'ответы'
+    
+    is_right = models.BooleanField('верность ответа')
+    options = models.ManyToManyField('Option')
+    attempt = models.ForeignKey(
+        'Attempt', verbose_name='попытка', 
+        related_name='answers', on_delete=models.CASCADE)
+
+
+class Choice(models.Model):
+
+    class Meta:
+        verbose_name = 'выбор'
+        verbose_name = 'выборы'
+
+    answer = models.ForeignKey(
+        'Answer', on_delete=models.CASCADE,
+        related_name='answers_choices', verbose_name='ответ')
+    option = models.ForeignKey(
+        'Option', on_delete=models.CASCADE,
+        related_name='options_choices', verbose_name='опция')
