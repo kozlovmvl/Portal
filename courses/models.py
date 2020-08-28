@@ -44,8 +44,8 @@ class Document(models.Model):
     def get_list(cls, user, folder_id):
         subquery = LikeDocument.objects.filter(user_id=user.id, doc=OuterRef('id'))
         list_obj = list(cls.objects.filter(folder=folder_id).values(
-            'id', 'title', 'description', 'created', 'preview', 'views',
-            likes=Count('likes'), is_liked=Exists(subquery)))
+            'id', 'title', 'description', 'created', 'preview', 'views', 
+            is_liked=Exists(subquery)).annotate(likes=Count('likes')))
         return list_obj
 
     @classmethod
