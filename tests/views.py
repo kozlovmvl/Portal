@@ -1,10 +1,17 @@
-from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 import json
 
 from authentication.decorators import auth_and_parse
 from tests import models
+import json
+
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view
+
+from authentication.decorators import auth_and_parse
+from tests import models
+
 
 @api_view(['POST'])
 @csrf_exempt
@@ -28,6 +35,11 @@ def test_get(system, data):
 @csrf_exempt
 @auth_and_parse
 def attempt_start(system, data):
+    # TODO: реализвать следующую схему
+    # создание объекта попытки; значение finish нужно вычислять в момент записи ответов, т.е. в другом запросе
+    # получение списка вопросов с вариантами ответов
+    # return {'attempt_id': int, 'questions': list of dict}, 200
+
     if 'test_id' in data and len(data['test_id']):
         attempt, status = models.Attempt.get_test(system['__user'], data['test_id'])
         return attempt, status
@@ -37,6 +49,13 @@ def attempt_start(system, data):
 @csrf_exempt
 @auth_and_parse
 def attempt_finish(system, data):
+    # TODO: реализовать следующую схему
+    # поиск объекта попытки по attempt_id
+    # проверка этой попытки на просроченность
+    # запись ответов и вычисление результата
+    # закрытие попытки
+    # return {'result': float, 'status': bool}, 200
+
     if ('attempt_id' and 'answers') in data:
         answers = json.loads(data['answers'])
         result, status = models.Answer.get_result(system['__user'], data['attempt_id'], answers)
