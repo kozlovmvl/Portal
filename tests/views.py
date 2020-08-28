@@ -29,7 +29,6 @@ def test_get(system, data):
 @auth_and_parse
 def attempt_start(system, data):
     if 'test_id' in data and len(data['test_id']):
-        print('begin')
         attempt, status = models.Attempt.get_test(system['__user'], data['test_id'])
         return attempt, status
     return {}, 400

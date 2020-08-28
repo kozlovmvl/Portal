@@ -27,12 +27,11 @@ class Test(models.Model):
     @classmethod
     def get_one(cls, test_id):
         try:
-            obj_one = cls.objects.values(
+            return cls.objects.values(
                 'id', 'title', 'min_result', 'time',
                 num_question=Count('tests')).get(id=test_id)
         except cls.DoesNotExist:
             return {'error': 'object is not find'}
-        return obj_one
 
     def __str__(self):
         return self.title
@@ -76,6 +75,12 @@ class Option(models.Model):
         'Question', verbose_name='вопрос',
         related_name='options', on_delete=models.CASCADE)
 
+
+    def get_list_right(id_quest):
+        return Option.objects.values_list(
+            'id', flat=True).filter(question_id=id_quest, is_right=True)
+
+
     def __str__(self):
         if len(self.text) > 70:
             return f'{self.text[:70]}...'
@@ -102,7 +107,7 @@ class Attempt(models.Model):
     @classmethod
     def get_test(cls, user, test_id):
         try:
-            test = Test.objects.values('time').get(id=test_id)
+            test = Test.objects.values('time').get(id=test_id, is_visible=True)
         except Test.DoesNotExist:
             return {'error': 'test is not find'}, 400
         #создаем или получаем тест
@@ -112,6 +117,7 @@ class Attempt(models.Model):
         #получаем список вопросов теста
         questions = list(Question.objects.values(
             'id', 'text', 'type').filter(test_id=test_id))
+
         #Добавляем к вопросам список опциональных ответов
         for item in questions:
             item['options'] = Option.objects.values('id', 'text').filter(question=item['id'])
@@ -137,42 +143,52 @@ class Answer(models.Model):
         verbose_name_plural = 'ответы'
     
     is_right = models.BooleanField('верность ответа')
-    options = models.ManyToManyField('Option')
+    options = models.ManyToManyField('Option', through='Choice', through_fields=["answer", "option"])
     attempt = models.ForeignKey(
         'Attempt', verbose_name='попытка', 
         related_name='answers', on_delete=models.CASCADE)
 
     @classmethod
-    def set_result(cls, user, attempt_id, answers):
+    def get_result(cls, user, attempt_id, answers):
         try:
             attempt = Attempt.objects.get(id=attempt_id)
         except Attempt.DoesNotExist:
             return {'error': 'attempt_id not exist'}, 400
 
-        if( timezone.now() > attempt.finish ) or attempt.is_over:
+        if (timezone.now() > attempt.finish) or attempt.is_over:
             return {}, 400
-
+        #подготавливаем переменные для подсчёта
         total_count_question = len(answers)
         right_answer_step = 100 / total_count_question
-        pass_test = attempt.test.min_result
         result = 0
-        for key, value in answers.items():
-            question = Option.objects.values_list('id', flat=True).filter(question_id=key, is_right=True)
-            is_right = set(question) == set(value) if True else False
+        #заносим ответы в базу и сравниваем на правильность
+        for id_question, list_answers in answers.items():
+            # возвращаем массив правильных ответов и сравниваем массивы через set
+            list_right_question = Option.get_list_right(id_question)
+            is_right = set(list_right_question) == set(list_answers) if True else False
             result += right_answer_step if is_right else 0 
-            obj = cls(attempt_id=attempt_id, is_right=is_right)
-            obj.save()
-            obj.options.add(*value)
-        
+            cls.create_answer(cls, attempt_id, is_right, list_answers)
+    
+        result, status = cls.save_results(attempt, result)
+        return {'result': result, 'status': status}, 200
+
+    def create_answer(cls, attempt_id, is_right, list_answers):
+        obj = cls(attempt_id=attempt_id, is_right=is_right)
+        obj.save()
+        obj.options.add(*list_answers)
+        return obj
+
+    def save_results(attempt, result):
         attempt.result = result
         attempt.is_over = True
         attempt.finish = timezone.now()
-        status_test = True if pass_test < result else False
+        status_test = True if attempt.test.min_result < result else False
         attempt.save(update_fields=['result', 'is_over', 'finish'])
-        return {'result': result, 'status': status_test}, 200
+        return result, status_test
 
     def __str__(self):
         return f'{self.attempt} {self.is_right}'
+
 
 class Choice(models.Model):
 
@@ -186,3 +202,6 @@ class Choice(models.Model):
     option = models.ForeignKey(
         'Option', on_delete=models.CASCADE,
         related_name='options_choices', verbose_name='опция')
+    
+    def __str__(self):
+        return f'{self.answer} - ответ: {self.option}'
