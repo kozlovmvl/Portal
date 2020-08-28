@@ -17,6 +17,13 @@ class Test(models.Model):
     time = models.PositiveIntegerField('время прохождения(мин)')
 
     @classmethod
+    def is_exist(cls, test_id):
+        try:
+            return cls.objects.get(id=test_id, is_visible=True)
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
     def get_list(cls, user):
         subquery = Attempt.objects.filter(user=user, test_id=OuterRef('id')).values('user')
         return list(cls.objects.values(
@@ -55,6 +62,15 @@ class Question(models.Model):
     test = models.ForeignKey(
         'Test', verbose_name="из теста", 
         related_name="tests", on_delete=models.CASCADE)
+
+    @classmethod
+    def get_questions(cls, test_id):
+        questions = list(cls.objects.values(
+            'id', 'text', 'type').filter(test_id=test_id))
+        for item in questions:
+            item['options'] = Option.objects.values('id', 'text').filter(question=item['id'])
+    
+        return questions
 
     def __str__(self):
         if len(self.text) > 70:
@@ -105,33 +121,20 @@ class Attempt(models.Model):
         related_name='attempts', on_delete=models.CASCADE)
 
     @classmethod
-    def get_test(cls, user, test_id):
+    def is_exist(cls, attempt_id):
         try:
-            test = Test.objects.values('time').get(id=test_id, is_visible=True)
-        except Test.DoesNotExist:
-            return {'error': 'test is not find'}, 400
-        #создаем или получаем тест
-        attempt, created = cls.objects.values(
+            attempt = cls.objects.get(id=attempt_id)
+        except cls.DoesNotExist:
+            return None
+        if attempt.start + timezone.timedelta(minutes=attempt.test.time) < timezone.now():
+            return None
+        return attempt
+
+    @classmethod
+    def create(user, test_id):
+        return cls.objects.values(
             'id','start', 'finish', 'is_over'
             ).get_or_create(user=user, test_id=test_id)
-        #получаем список вопросов теста
-        questions = list(Question.objects.values(
-            'id', 'text', 'type').filter(test_id=test_id))
-
-        #Добавляем к вопросам список опциональных ответов
-        for item in questions:
-            item['options'] = Option.objects.values('id', 'text').filter(question=item['id'])
-        #если попытка уже создана и не просрочена, возращаем данные
-        if not created and (attempt['finish'] > timezone.now()):
-            dict_obj = { 'attempt_id': attempt['id'], 'questions': questions }
-            return dict_obj, 200
-        elif created: #если создана, возвращаем данные и обозначаем дату окончания
-            dict_obj = { 'attempt_id': attempt.id, 'questions': questions }
-            attempt.finish = F('start') + timezone.timedelta(minutes=test['time'])
-            attempt.save(update_fields=['finish'])
-            return dict_obj, 200
-        else: #если просрочена или окончена
-            return {}, 400
         
     def __str__(self):
         return f'"{self.test}" от {self.user}'
@@ -149,31 +152,22 @@ class Answer(models.Model):
         related_name='answers', on_delete=models.CASCADE)
 
     @classmethod
-    def get_result(cls, user, attempt_id, answers):
-        try:
-            attempt = Attempt.objects.get(id=attempt_id)
-        except Attempt.DoesNotExist:
-            return {'error': 'attempt_id not exist'}, 400
-
-        if (timezone.now() > attempt.finish) or attempt.is_over:
-            return {}, 400
-        #подготавливаем переменные для подсчёта
+    def get_result(cls, user, attempt, answers):
         total_count_question = len(answers)
         right_answer_step = 100 / total_count_question
         result = 0
-        #заносим ответы в базу и сравниваем на правильность
+
         for id_question, list_answers in answers.items():
-            # возвращаем массив правильных ответов и сравниваем массивы через set
             list_right_question = Option.get_list_right(id_question)
             is_right = set(list_right_question) == set(list_answers) if True else False
             result += right_answer_step if is_right else 0 
-            cls.create_answer(cls, attempt_id, is_right, list_answers)
+            cls.create_answer(cls, attempt, is_right, list_answers)
     
         result, status = cls.save_results(attempt, result)
         return {'result': result, 'status': status}, 200
 
-    def create_answer(cls, attempt_id, is_right, list_answers):
-        obj = cls(attempt_id=attempt_id, is_right=is_right)
+    def create_answer(cls, attempt, is_right, list_answers):
+        obj = cls(attempt=attempt, is_right=is_right)
         obj.save()
         obj.options.add(*list_answers)
         return obj

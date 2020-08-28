@@ -35,29 +35,24 @@ def test_get(system, data):
 @csrf_exempt
 @auth_and_parse
 def attempt_start(system, data):
-    # TODO: реализвать следующую схему
-    # создание объекта попытки; значение finish нужно вычислять в момент записи ответов, т.е. в другом запросе
-    # получение списка вопросов с вариантами ответов
-    # return {'attempt_id': int, 'questions': list of dict}, 200
-
     if 'test_id' in data and len(data['test_id']):
-        attempt, status = models.Attempt.get_test(system['__user'], data['test_id'])
-        return attempt, status
+        test = models.Test.is_exist(data['test_id'])
+        if test is None:
+            return {}, 400
+        attempt, _ = models.Attempt.objects.get_or_create(user=system['__user'], test_id=data['test_id'])
+        questions = models.Question.get_questions(data['test_id'])
+        return {'attempt_id': attempt.id, 'questions': questions}, 200
     return {}, 400
 
 @api_view(['POST'])
 @csrf_exempt
 @auth_and_parse
 def attempt_finish(system, data):
-    # TODO: реализовать следующую схему
-    # поиск объекта попытки по attempt_id
-    # проверка этой попытки на просроченность
-    # запись ответов и вычисление результата
-    # закрытие попытки
-    # return {'result': float, 'status': bool}, 200
-
     if ('attempt_id' and 'answers') in data:
         answers = json.loads(data['answers'])
-        result, status = models.Answer.get_result(system['__user'], data['attempt_id'], answers)
+        attempt = models.Attempt.is_exist(data['attempt_id'])
+        if attempt is None:
+            return {}, 400
+        result, status = models.Answer.get_result(system['__user'], attempt, answers)
         return result, status
     return {}, 400
