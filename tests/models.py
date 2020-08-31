@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Count, OuterRef, Exists, F
+from django.db.models import Count, OuterRef, Exists, F, Prefetch
 from django.utils import timezone
 
 from authentication.models import CustomUser
@@ -64,15 +64,26 @@ class Question(models.Model):
         related_name="tests", on_delete=models.CASCADE)
 
     @classmethod
+    def count(cls, test_id):
+        return cls.objects.filter(test_id=test_id).count()
+
+    @classmethod
     def get_questions(cls, test_id):
         # TODO: неоптимальный алгоритм сбора опций - слишком много запросов в БД.
         # TODO: переделать с помощью prefetch_related
-        questions = list(cls.objects.values(
-            'id', 'text', 'type').filter(test_id=test_id))
-        for item in questions:
-            item['options'] = Option.objects.values('id', 'text').filter(question=item['id'])
-    
+        qs = Option.objects.all()
+        questions = list(cls.objects.values('id', 'text', 'type').filter(test_id=test_id))
+        options = cls.objects.prefetch_related(
+            Prefetch('options', queryset=qs, to_attr="opts")
+        ).filter(test_id=test_id)
+
+        for i, item in enumerate(options):
+            questions[i]['options'] = {opt.id: opt.text for opt in item.opts}
         return questions
+
+    @classmethod
+    def get_list_id(cls, test_id):
+        return cls.objects.values_list('id', flat=True).filter(test_id=test_id)
 
     def __str__(self):
         if len(self.text) > 70:
@@ -93,10 +104,19 @@ class Option(models.Model):
         'Question', verbose_name='вопрос',
         related_name='options', on_delete=models.CASCADE)
 
-
-    def get_list_right(id_quest):
-        return Option.objects.values_list(
-            'id', flat=True).filter(question_id=id_quest, is_right=True)
+    @classmethod
+    def get_list_right(cls, id_quest):
+        obj = cls.objects.prefetch_related('question').values(
+            'question_id', 'question__type', 'id', 'order'
+        ).filter(question_id__in=id_quest, is_right=True).order_by('order')
+        result = {}
+        for item in obj:
+            if item['question_id'] in result:
+                result[item['question_id']]['values'].append(item['id'])
+            else:
+                result.setdefault(item['question_id'], 
+                    {"type": item['question__type'], 'values': [item['id']]})
+        return result
 
 
     def __str__(self):
@@ -133,7 +153,7 @@ class Attempt(models.Model):
         return attempt
 
     @classmethod
-    def create(user, test_id):
+    def create(cls, user, test_id):
         return cls.objects.values(
             'id','start', 'finish', 'is_over'
             ).get_or_create(user=user, test_id=test_id)
@@ -167,32 +187,41 @@ class Answer(models.Model):
         иначе - сравнивать set опций.
         """
 
-        total_count_question = len(answers)
-        right_answer_step = 100 / total_count_question
-        result = 0
+        list_id = Question.get_list_id(attempt.test.id)
+        total_count_question = len(list_id)
+        list_right_question = Option.get_list_right(list_id)
+        count_right_answers = 0
 
         for id_question, list_answers in answers.items():
-            list_right_question = Option.get_list_right(id_question)
-            is_right = set(list_right_question) == set(list_answers) if True else False
-            result += right_answer_step if is_right else 0 
-            cls.create_answer(cls, attempt, is_right, list_answers)
-    
-        result, status = cls.save_results(attempt, result)
+            is_right = False
+            if int(id_question) in list_right_question and \
+                list_right_question[int(id_question)]['type'] == 'sort':
+                if list_answers == list_right_question[int(id_question)]['values']:
+                    count_right_answers += 1
+                    is_right = True
+            elif int(id_question) in list_right_question and \
+                 set(list_right_question[int(id_question)]['values']) == set(list_answers):
+                    count_right_answers += 1
+                    is_right = True
+            cls.create_answer(attempt, is_right, list_answers)
+        result, status = cls.save_results(attempt, count_right_answers, total_count_question)
         return {'result': result, 'status': status}, 200
 
+    @classmethod
+    def save_results(cls, attempt, right_answ, count_qst):
+        attempt.result = 100 * right_answ / count_qst
+        attempt.is_over = True
+        attempt.finish = timezone.now()
+        status_test = True if attempt.test.min_result < attempt.result else False
+        attempt.save(update_fields=['result', 'is_over', 'finish'])
+        return attempt.result, status_test
+
+    @classmethod
     def create_answer(cls, attempt, is_right, list_answers):
         obj = cls(attempt=attempt, is_right=is_right)
         obj.save()
         obj.options.add(*list_answers)
         return obj
-
-    def save_results(attempt, result):
-        attempt.result = result
-        attempt.is_over = True
-        attempt.finish = timezone.now()
-        status_test = True if attempt.test.min_result < result else False
-        attempt.save(update_fields=['result', 'is_over', 'finish'])
-        return result, status_test
 
     def __str__(self):
         return f'{self.attempt} {self.is_right}'
