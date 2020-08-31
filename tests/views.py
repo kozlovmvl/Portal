@@ -1,9 +1,3 @@
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
-import json
-
-from authentication.decorators import auth_and_parse
-from tests import models
 import json
 
 from django.views.decorators.csrf import csrf_exempt
@@ -22,6 +16,7 @@ def test_all(system, data):
     }
     return response, 200
 
+
 @api_view(['POST'])
 @csrf_exempt
 @auth_and_parse
@@ -31,18 +26,21 @@ def test_get(system, data):
         return response, 200
     return {}, 400
 
+
 @api_view(['POST'])
 @csrf_exempt
 @auth_and_parse
 def attempt_start(system, data):
     if 'test_id' in data and len(data['test_id']):
         test = models.Test.is_exist(data['test_id'])
-        if test is None:
+        if not test:
             return {}, 400
-        attempt, _ = models.Attempt.objects.get_or_create(user=system['__user'], test_id=data['test_id'])
+        attempt = models.Attempt.objects.create(
+            user_id=system['__user'].id, test_id=data['test_id'])
         questions = models.Question.get_questions(data['test_id'])
         return {'attempt_id': attempt.id, 'questions': questions}, 200
     return {}, 400
+
 
 @api_view(['POST'])
 @csrf_exempt
@@ -53,6 +51,6 @@ def attempt_finish(system, data):
         attempt = models.Attempt.is_exist(data['attempt_id'])
         if attempt is None:
             return {}, 400
-        result, status = models.Answer.get_result(system['__user'], attempt, answers)
+        result, status = models.Answer.add(system['__user'], attempt, answers)
         return result, status
     return {}, 400

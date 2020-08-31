@@ -65,6 +65,8 @@ class Question(models.Model):
 
     @classmethod
     def get_questions(cls, test_id):
+        # TODO: неоптимальный алгоритм сбора опций - слишком много запросов в БД.
+        # TODO: переделать с помощью prefetch_related
         questions = list(cls.objects.values(
             'id', 'text', 'type').filter(test_id=test_id))
         for item in questions:
@@ -152,7 +154,19 @@ class Answer(models.Model):
         related_name='answers', on_delete=models.CASCADE)
 
     @classmethod
-    def get_result(cls, user, attempt, answers):
+    def add(cls, user, attempt, answers):
+        """
+        1. Результат должен вычисляться по формуле 100 * число_верных / общее_число_вопросов
+        пользователь прислать меньше ответов, чем всего было вопросов,
+        поэтому total_count_question нужно вычислять не как количество ответов, а как количество вопросов.
+
+        2. Вопросы с верными вариантами ответов нужно получать из БД заранее одним запросом.
+
+        3. Проверка правильности ответа зависит от типа вопроса:
+        если тип sort, то нужно сравнивать list опций, т.к. важен именно порядок,
+        иначе - сравнивать set опций.
+        """
+
         total_count_question = len(answers)
         right_answer_step = 100 / total_count_question
         result = 0
