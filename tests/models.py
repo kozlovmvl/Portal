@@ -3,7 +3,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from authentication.models import CustomUser
-
+import json
 
 class Test(models.Model):
 
@@ -133,10 +133,12 @@ class Attempt(models.Model):
         return self.start + timezone.timedelta(minutes=self.test.time) < timezone.now()
 
     def close(self, result):
+        test = Test.get_one(self.test.id)
         self.result = result
         self.finish = timezone.now()
         self.is_over = True
         self.save(update_fields=['result', 'finish', 'is_over', ])
+        return True if test['min_result'] < result else False
 
     def __str__(self):
         return f'"{self.test}" от {self.user}'
@@ -155,14 +157,15 @@ class Answer(models.Model):
 
     @classmethod
     def add(cls, user, attempt, answers):
+        answers = json.loads(answers)
         questions = Question.get_right_options(attempt.test_id)
         rights_count = 0
         for q_id, option_ids in answers.items():
-            if questions[q_id]['type'] == 'sort':
-                is_right = questions[q_id]['options'] == option_ids
+            if questions[int(q_id)]['type'] == 'sort':
+                is_right = questions[int(q_id)]['options'] == option_ids
             else:
-                is_right = set(questions[q_id]['options']) == set(option_ids)
-            ans_obj = cls.objects.create(question_id=q_id, is_right=is_right)
+                is_right = set(questions[int(q_id)]['options']) == set(option_ids)
+            ans_obj = cls.objects.create(question_id=int(q_id), is_right=is_right)
             bulk = []
             for opt_id in option_ids:
                 bulk.append(Choice(answer_id=ans_obj.id, option_id=opt_id))

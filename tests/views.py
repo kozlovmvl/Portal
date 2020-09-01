@@ -45,5 +45,5 @@ def attempt_finish(system, data):
     if attempt.is_expired():
         return {'error': 'attempt_is_expired'}, 400
     result = models.Answer.add(system['__user'], attempt, data['answers'])
-    attempt.close(result)
-    return result, 200
+    status = attempt.close(result)
+    return {'result': result, 'status': status}, 200
