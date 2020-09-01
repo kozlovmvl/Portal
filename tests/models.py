@@ -1,8 +1,9 @@
 from django.db import models
-from django.db.models import Count, OuterRef, Exists, F, Prefetch
+from django.db.models import Count
 from django.utils import timezone
 
 from authentication.models import CustomUser
+
 
 class Test(models.Model):
 
@@ -17,28 +18,17 @@ class Test(models.Model):
     time = models.PositiveIntegerField('время прохождения(мин)')
 
     @classmethod
-    def is_exist(cls, test_id):
-        try:
-            return cls.objects.get(id=test_id, is_visible=True)
-        except cls.DoesNotExist:
-            return None
-
-    @classmethod
     def get_list(cls, user):
-        subquery = Attempt.objects.filter(user=user, test_id=OuterRef('id')).values('user')
-        return list(cls.objects.values(
-            'id', 'title', 'preview')
-            .filter(is_visible=True)
-            .annotate(available_attempts=~Exists(subquery)))
+        qs = cls.objects.exclude(test_attempts__user_id=user.id)\
+            .filter(is_visible=True).order_by('title')\
+            .values('id', 'title', 'preview')
+        return list(qs)
 
     @classmethod
     def get_one(cls, test_id):
-        try:
-            return cls.objects.values(
-                'id', 'title', 'min_result', 'time',
-                num_question=Count('tests')).get(id=test_id)
-        except cls.DoesNotExist:
-            return {'error': 'object is not find'}
+        return cls.objects.values(
+            'id', 'title', 'min_result', 'time',
+            num_question=Count('questions')).get(id=test_id)
 
     def __str__(self):
         return self.title
@@ -61,29 +51,35 @@ class Question(models.Model):
     order = models.PositiveIntegerField('порядок')
     test = models.ForeignKey(
         'Test', verbose_name="из теста", 
-        related_name="tests", on_delete=models.CASCADE)
-
-    @classmethod
-    def count(cls, test_id):
-        return cls.objects.filter(test_id=test_id).count()
+        related_name="questions", on_delete=models.CASCADE)
 
     @classmethod
     def get_questions(cls, test_id):
-        # TODO: неоптимальный алгоритм сбора опций - слишком много запросов в БД.
-        # TODO: переделать с помощью prefetch_related
-        qs = Option.objects.all()
-        questions = list(cls.objects.values('id', 'text', 'type').filter(test_id=test_id))
-        options = cls.objects.prefetch_related(
-            Prefetch('options', queryset=qs, to_attr="opts")
-        ).filter(test_id=test_id)
-
-        for i, item in enumerate(options):
-            questions[i]['options'] = {opt.id: opt.text for opt in item.opts}
-        return questions
+        list_questions = []
+        for q in cls.objects.filter(test_id=test_id)\
+                .prefetch_related('options').order_by('order'):
+            list_questions.append({
+                'id': q.id,
+                'text': q.text,
+                'options': list(q.options.all().values_list('id', flat=True))
+            })
+        return list_questions
 
     @classmethod
-    def get_list_id(cls, test_id):
-        return cls.objects.values_list('id', flat=True).filter(test_id=test_id)
+    def get_right_options(cls, test_id):
+        """
+        Возвращает словарь:
+        ключ: id вопроса,
+        значение: {'type': str, 'options': list of int}
+        """
+        questions = {}
+        for q in cls.objects.filter(test_id=test_id).prefetch_related('options'):
+            right_options = []
+            for opt in q.options.all().order_by('order'):
+                if opt.is_right:
+                    right_options.append(opt.id)
+            questions[q.id] = {'type': q.type, 'options': right_options}
+        return questions
 
     def __str__(self):
         if len(self.text) > 70:
@@ -103,21 +99,6 @@ class Option(models.Model):
     question = models.ForeignKey(
         'Question', verbose_name='вопрос',
         related_name='options', on_delete=models.CASCADE)
-
-    @classmethod
-    def get_list_right(cls, id_quest):
-        obj = cls.objects.prefetch_related('question').values(
-            'question_id', 'question__type', 'id', 'order'
-        ).filter(question_id__in=id_quest, is_right=True).order_by('order')
-        result = {}
-        for item in obj:
-            if item['question_id'] in result:
-                result[item['question_id']]['values'].append(item['id'])
-            else:
-                result.setdefault(item['question_id'], 
-                    {"type": item['question__type'], 'values': [item['id']]})
-        return result
-
 
     def __str__(self):
         if len(self.text) > 70:
@@ -143,23 +124,23 @@ class Attempt(models.Model):
         related_name='attempts', on_delete=models.CASCADE)
 
     @classmethod
-    def is_exist(cls, attempt_id):
-        try:
-            attempt = cls.objects.get(id=attempt_id)
-        except cls.DoesNotExist:
-            return None
-        if attempt.start + timezone.timedelta(minutes=attempt.test.time) < timezone.now():
-            return None
-        return attempt
-
-    @classmethod
     def create(cls, user, test_id):
         return cls.objects.values(
             'id','start', 'finish', 'is_over'
             ).get_or_create(user=user, test_id=test_id)
-        
+
+    def is_expired(self):
+        return self.start + timezone.timedelta(minutes=self.test.time) < timezone.now()
+
+    def close(self, result):
+        self.result = result
+        self.finish = timezone.now()
+        self.is_over = True
+        self.save(update_fields=['result', 'finish', 'is_over', ])
+
     def __str__(self):
         return f'"{self.test}" от {self.user}'
+
 
 class Answer(models.Model):
 
@@ -168,63 +149,30 @@ class Answer(models.Model):
         verbose_name_plural = 'ответы'
     
     is_right = models.BooleanField('верность ответа')
-    options = models.ManyToManyField('Option', through='Choice', through_fields=["answer", "option"])
-    attempt = models.ForeignKey(
-        'Attempt', verbose_name='попытка', 
-        related_name='answers', on_delete=models.CASCADE)
+    options = models.ManyToManyField(
+        'Option', through='Choice', through_fields=["answer", "option"])
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
 
     @classmethod
     def add(cls, user, attempt, answers):
-        """
-        1. Результат должен вычисляться по формуле 100 * число_верных / общее_число_вопросов
-        пользователь прислать меньше ответов, чем всего было вопросов,
-        поэтому total_count_question нужно вычислять не как количество ответов, а как количество вопросов.
-
-        2. Вопросы с верными вариантами ответов нужно получать из БД заранее одним запросом.
-
-        3. Проверка правильности ответа зависит от типа вопроса:
-        если тип sort, то нужно сравнивать list опций, т.к. важен именно порядок,
-        иначе - сравнивать set опций.
-        """
-
-        list_id = Question.get_list_id(attempt.test.id)
-        total_count_question = len(list_id)
-        list_right_question = Option.get_list_right(list_id)
-        count_right_answers = 0
-
-        for id_question, list_answers in answers.items():
-            is_right = False
-            if int(id_question) in list_right_question and \
-                list_right_question[int(id_question)]['type'] == 'sort':
-                if list_answers == list_right_question[int(id_question)]['values']:
-                    count_right_answers += 1
-                    is_right = True
-            elif int(id_question) in list_right_question and \
-                 set(list_right_question[int(id_question)]['values']) == set(list_answers):
-                    count_right_answers += 1
-                    is_right = True
-            cls.create_answer(attempt, is_right, list_answers)
-        result, status = cls.save_results(attempt, count_right_answers, total_count_question)
-        return {'result': result, 'status': status}, 200
-
-    @classmethod
-    def save_results(cls, attempt, right_answ, count_qst):
-        attempt.result = 100 * right_answ / count_qst
-        attempt.is_over = True
-        attempt.finish = timezone.now()
-        status_test = True if attempt.test.min_result < attempt.result else False
-        attempt.save(update_fields=['result', 'is_over', 'finish'])
-        return attempt.result, status_test
-
-    @classmethod
-    def create_answer(cls, attempt, is_right, list_answers):
-        obj = cls(attempt=attempt, is_right=is_right)
-        obj.save()
-        obj.options.add(*list_answers)
-        return obj
+        questions = Question.get_right_options(attempt.test_id)
+        rights_count = 0
+        for q_id, option_ids in answers.items():
+            if questions[q_id]['type'] == 'sort':
+                is_right = questions[q_id]['options'] == option_ids
+            else:
+                is_right = set(questions[q_id]['options']) == set(option_ids)
+            ans_obj = cls.objects.create(question_id=q_id, is_right=is_right)
+            bulk = []
+            for opt_id in option_ids:
+                bulk.append(Choice(answer_id=ans_obj.id, option_id=opt_id))
+            Choice.objects.bulk_create(bulk)
+            if is_right:
+                rights_count += 1
+        return 100 * rights_count / len(questions)
 
     def __str__(self):
-        return f'{self.attempt} {self.is_right}'
+        return f'{self.question_id} {self.is_right}'
 
 
 class Choice(models.Model):
