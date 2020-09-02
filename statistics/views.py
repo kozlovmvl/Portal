@@ -9,14 +9,11 @@ from tests import models
 @csrf_exempt
 @auth_and_parse
 def result_statistics(system, data):
-    # TODO: этот запрос вернет только тесты с попытками
-    # а нужно вернуть все тесты, даже если попытки не было
     list_obj = None
     if ('test_id' in data) and ('user_id' in data) :
         list_obj = models.Attempt.get_list(user_id=data['user_id'], test_id=data['test_id'])
     elif 'test_id' in data:
         list_obj = models.Attempt.get_list(test_id=data['test_id'])
-        print(list_obj)
     elif 'user_id' in data:
         list_obj = models.Attempt.get_list(user_id=data['user_id'])
     else:

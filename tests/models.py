@@ -149,8 +149,11 @@ class Attempt(models.Model):
                 When(result__isnull=True, then=Value(False)),
                 default=Value(True),
                 output_field=models.BooleanField()
-            )
-        ).filter(**kwargs))
+            )).annotate(test=F('test__title')).filter(**kwargs))
+        
+        if not len(list_obj) and 'test_id' in kwargs:
+            test = Test.objects.values('title').get(id=kwargs['test_id'])
+            list_obj.append({'test': test['title'], 'result': None, 'is_success': False})
         return list_obj
 
     def __str__(self):

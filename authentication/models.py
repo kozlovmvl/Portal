@@ -14,7 +14,7 @@ class CustomUser(AbstractUser):
 
     token = models.UUIDField('токен', default=uuid1)
     date_token_renewed = models.DateTimeField(default=timezone.now)
-    role = models.SmallIntegerField('роль', choices=ROLES)
+    #role = models.SmallIntegerField('роль', choices=ROLES)
 
     @classmethod
     def get_one(cls, user_id):
