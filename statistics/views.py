@@ -1,16 +1,16 @@
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 
-from tests import models
-from authentication.models import CustomUser
-
 from authentication.decorators import auth_and_parse
+from tests import models
 
 
 @api_view(['POST'])
 @csrf_exempt
 @auth_and_parse
 def result_statistics(system, data):
+    # TODO: этот запрос вернет только тесты с попытками
+    # а нужно вернуть все тесты, даже если попытки не было
     list_obj = None
     if ('test_id' in data) and ('user_id' in data) :
         list_obj = models.Attempt.get_list(user_id=data['user_id'], test_id=data['test_id'])

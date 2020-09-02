@@ -141,14 +141,15 @@ class Attempt(models.Model):
         return True if test['min_result'] < result else False
 
     @classmethod
-    def get_list(cls, **kwargs):            
-        list_obj = list(cls.objects.values('result', 
-        is_success=Case(
-            When(test__min_result__gt=F('result'), then=Value(False)),
-            When(result__isnull=True, then=Value(False)),
-            default=Value(True),
-            output_field=models.BooleanField()
-        )
+    def get_list(cls, **kwargs):
+        list_obj = list(cls.objects.values(
+            'result',
+            is_success=Case(
+                When(test__min_result__gt=F('result'), then=Value(False)),
+                When(result__isnull=True, then=Value(False)),
+                default=Value(True),
+                output_field=models.BooleanField()
+            )
         ).filter(**kwargs))
         return list_obj
 
