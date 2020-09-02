@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Case, When, Value, OuterRef, F
 from django.utils import timezone
 
 from authentication.models import CustomUser
@@ -139,6 +139,18 @@ class Attempt(models.Model):
         self.is_over = True
         self.save(update_fields=['result', 'finish', 'is_over', ])
         return True if test['min_result'] < result else False
+
+    @classmethod
+    def get_list(cls, **kwargs):            
+        list_obj = list(cls.objects.values('result', 
+        is_success=Case(
+            When(test__min_result__gt=F('result'), then=Value(False)),
+            When(result__isnull=True, then=Value(False)),
+            default=Value(True),
+            output_field=models.BooleanField()
+        )
+        ).filter(**kwargs))
+        return list_obj
 
     def __str__(self):
         return f'"{self.test}" от {self.user}'
