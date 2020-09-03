@@ -31,6 +31,10 @@ class Test(models.Model):
             usrs = CustomUser.objects.filter(id__in=kwargs['users']).values('id', 'username')
         else:
             usrs = CustomUser.objects.values('id', 'username')
+        """
+        Честно говоря я не знаю как отобрать одним запросом всех юзеров
+        со всеми сочетаниями результатов теста, поэтому я сделал циклом.
+        """
         for usr in usrs:
             list_obj += [*cls.objects.values(
                 test=F('title'), 
