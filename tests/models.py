@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Count, Case, When, Value, OuterRef, F
+from django.db.models import Count, Case, When, Value, OuterRef, F, Q, Exists
 from django.utils import timezone
 
 from authentication.models import CustomUser
@@ -23,6 +23,55 @@ class Test(models.Model):
             .filter(is_visible=True).order_by('title')\
             .values('id', 'title', 'preview')
         return list(qs)
+    
+    @classmethod
+    def get_list_statistics(cls, **kwargs):
+        list_obj = []
+        if 'users' in kwargs:
+            usrs = CustomUser.objects.filter(id__in=kwargs['users']).values('id', 'username')
+        else:
+            usrs = CustomUser.objects.values('id', 'username')
+        for usr in usrs:
+            list_obj += [*cls.objects.values(
+                test=F('title'), 
+                is_success=Exists(Attempt.objects.values('test_id')\
+                    .filter(test_id=OuterRef('id'), 
+                            user_id=usr['id'], 
+                            result__gt=OuterRef('min_result'))),
+                user=Value(usr['username'], 
+                    output_field=models.CharField()),
+                result=Attempt.objects.values('result')\
+                    .filter(test_id=OuterRef('id'), user_id=usr['id'])
+                ) ]
+        return list_obj
+
+    @classmethod
+    def get_list_statistics_for_test(cls, test_id):
+        list_obj = CustomUser.objects.values(
+            'username',
+            is_success=Exists(Attempt.objects\
+                .filter(test_id=test_id, 
+                        user_id=OuterRef('id'), 
+                        result__gt=Test.objects.values('min_result')\
+                            .filter(id=OuterRef('test_id')))),
+            test=Value(Test.objects.values('title').get(id=test_id)['title'], models.CharField()),
+            result=Attempt.objects.values('result').filter(test_id=test_id, user_id=OuterRef('id')))
+        return list_obj
+
+    @classmethod
+    def get_statistics_user_test(cls, user_id, test_id):
+        usr = CustomUser.objects.get(id=user_id)
+        list_obj = cls.objects.values(
+            test=F('title'), 
+            is_success=Exists(Attempt.objects.values('test_id')\
+                .filter(test_id=OuterRef('id'), 
+                        user_id=user_id, 
+                        result__gt=OuterRef('min_result'))),
+            user=Value(usr,
+                output_field=models.CharField()),
+            result=Attempt.objects.values('result')\
+                .filter(test_id=OuterRef('id'), user_id=user_id)).get(id=test_id)
+        return list_obj
 
     @classmethod
     def get_one(cls, test_id):
@@ -139,22 +188,6 @@ class Attempt(models.Model):
         self.is_over = True
         self.save(update_fields=['result', 'finish', 'is_over', ])
         return True if test['min_result'] < result else False
-
-    @classmethod
-    def get_list(cls, **kwargs):
-        list_obj = list(cls.objects.values(
-            'result',
-            is_success=Case(
-                When(test__min_result__gt=F('result'), then=Value(False)),
-                When(result__isnull=True, then=Value(False)),
-                default=Value(True),
-                output_field=models.BooleanField()
-            )).annotate(test=F('test__title')).filter(**kwargs))
-        
-        if not len(list_obj) and 'test_id' in kwargs:
-            test = Test.objects.values('title').get(id=kwargs['test_id'])
-            list_obj.append({'test': test['title'], 'result': None, 'is_success': False})
-        return list_obj
 
     def __str__(self):
         return f'"{self.test}" от {self.user}'
