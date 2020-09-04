@@ -16,7 +16,10 @@ def auth_and_parse(func):
         if not user.is_active or __is_expire_token(user.date_token_renewed):
             return Response(data={}, status=401)
         system = {'__user': user, 'query': request.GET}
-        data = request.POST
+        try:
+            data = request.data.dict()
+        except AttributeError:
+            data = request.data
         response, status = func(system, data)
         return Response(data=response, status=status)
     return wrapped

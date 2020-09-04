@@ -6,7 +6,7 @@ from authentication.models import CustomUser
 from tests.models import Attempt, Test
 
 
-@attr.s(auto_attribs=True)
+@attr.s
 class ResultsFactory:
     user_id = attr.ib(
         default=None,
