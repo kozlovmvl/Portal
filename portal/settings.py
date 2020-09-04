@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'tests',
     'rest_framework',
+    'statistics'
 ]
 
 MIDDLEWARE = [

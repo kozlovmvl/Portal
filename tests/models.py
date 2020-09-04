@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Case, When, Value, OuterRef, F, Q, Exists
 from django.utils import timezone
 
 from authentication.models import CustomUser
@@ -23,6 +23,59 @@ class Test(models.Model):
             .filter(is_visible=True).order_by('title')\
             .values('id', 'title', 'preview')
         return list(qs)
+    
+    @classmethod
+    def get_list_statistics(cls, **kwargs):
+        list_obj = []
+        if 'users' in kwargs:
+            usrs = CustomUser.objects.filter(id__in=kwargs['users']).values('id', 'username')
+        else:
+            usrs = CustomUser.objects.values('id', 'username')
+        """
+        Честно говоря я не знаю как отобрать одним запросом всех юзеров
+        со всеми сочетаниями результатов теста, поэтому я сделал циклом.
+        """
+        for usr in usrs:
+            list_obj += [*cls.objects.values(
+                test=F('title'), 
+                is_success=Exists(Attempt.objects.values('test_id')\
+                    .filter(test_id=OuterRef('id'), 
+                            user_id=usr['id'], 
+                            result__gt=OuterRef('min_result'))),
+                user=Value(usr['username'], 
+                    output_field=models.CharField()),
+                result=Attempt.objects.values('result')\
+                    .filter(test_id=OuterRef('id'), user_id=usr['id'])
+                ) ]
+        return list_obj
+
+    @classmethod
+    def get_list_statistics_for_test(cls, test_id):
+        list_obj = CustomUser.objects.values(
+            'username',
+            is_success=Exists(Attempt.objects\
+                .filter(test_id=test_id, 
+                        user_id=OuterRef('id'), 
+                        result__gt=Test.objects.values('min_result')\
+                            .filter(id=OuterRef('test_id')))),
+            test=Value(Test.objects.values('title').get(id=test_id)['title'], models.CharField()),
+            result=Attempt.objects.values('result').filter(test_id=test_id, user_id=OuterRef('id')))
+        return list_obj
+
+    @classmethod
+    def get_statistics_user_test(cls, user_id, test_id):
+        usr = CustomUser.objects.get(id=user_id)
+        list_obj = cls.objects.values(
+            test=F('title'), 
+            is_success=Exists(Attempt.objects.values('test_id')\
+                .filter(test_id=OuterRef('id'), 
+                        user_id=user_id, 
+                        result__gt=OuterRef('min_result'))),
+            user=Value(usr,
+                output_field=models.CharField()),
+            result=Attempt.objects.values('result')\
+                .filter(test_id=OuterRef('id'), user_id=user_id)).get(id=test_id)
+        return list_obj
 
     @classmethod
     def get_one(cls, test_id):

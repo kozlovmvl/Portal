@@ -28,8 +28,10 @@ def test_get(system, data):
 @csrf_exempt
 @auth_and_parse
 def attempt_start(system, data):
-    attempt = models.Attempt.objects.create(
+    attempt, created = models.Attempt.objects.get_or_create(
         user_id=system['__user'].id, test_id=data['test_id'])
+    if not created and attempt.is_over:
+        return {'error': 'test passed'}, 400
     questions = models.Question.get_questions(data['test_id'])
     return {'attempt_id': attempt.id, 'questions': questions}, 200
 
@@ -44,6 +46,8 @@ def attempt_finish(system, data):
         return {'error': 'attempt_not_found'}, 404
     if attempt.is_expired():
         return {'error': 'attempt_is_expired'}, 400
+    if attempt.is_over:
+        return {'error': 'test is over'}, 400
     result = models.Answer.add(system['__user'], attempt, data['answers'])
     status = attempt.close(result)
     return {'result': result, 'status': status}, 200
