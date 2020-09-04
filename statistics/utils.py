@@ -28,10 +28,12 @@ class ResultsFactory:
         return list(tests_qs)
 
     def __get_for_test(self):
+        min_result = Test.objects.values('min_result')\
+            .get(id=self.test_id)['min_rezult']
         attempts_qs = Attempt.objects.filter(
             user_id=OuterRef('id'),
             test_id=self.test_id,
-            result__gte=OuterRef('min_result')
+            result__gte=min_result
         )
         users_qs = CustomUser.objects.filter(role='user').values(
             user=Concat(
